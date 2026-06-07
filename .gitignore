@@ -102,7 +102,7 @@ bin/
 tmpclaude-*
 plugins/known_marketplaces.json
 paste-cache/
-tasks/
+#tasks/
 teams/
 cache/
 parallel-phases/
