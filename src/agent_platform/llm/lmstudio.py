@@ -1,12 +1,12 @@
-from typing import Dict, Any
 from dotenv import load_dotenv
+from crewai.llm import LLM
 
 load_dotenv()
 
 
 def get_lmstudio_llm(
     model: str, temperature: float, base_url: str, api_key: str, llm_type: str
-) -> Dict[str, Any]:
+) -> LLM:
     """
     Configures the necessary parameters for making an API call to a local
     LLM running via LMStudio.
@@ -21,10 +21,13 @@ def get_lmstudio_llm(
     Returns:
         LLMConfig: A structured object containing all configuration parameters.
     """
-    return {
-        "model": model,
-        "temperature": temperature,
-        "base_url": base_url,
-        "api_key": api_key,
-        "llm_type": llm_type,
-    }
+    return LLM(
+        model=model,
+        temperature=temperature,
+        base_url=base_url,
+        api_key=api_key,
+        provider="openai",
+        extra_headers={
+            "User-Agent": "Mozilla/5.0 (compatible; MyApp/1.0)",
+        },
+    )
