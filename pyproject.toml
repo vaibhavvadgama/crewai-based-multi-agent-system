@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "CrewAI based project production grade multi-agent system."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
-dependencies = ["crewai>=1.14.6"]
+dependencies = [
+    "crewai>=1.14.6",
+    "pytest>=9.0.3",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -17,6 +20,16 @@ packages = ["src/agent_platform"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+
+log_cli = true
+log_cli_level = "INFO"
+
+markers = [
+    "integration: marks tests that require external services"
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:crewai.*"
+]
 
 [tool.ruff]
 line-length = 100
