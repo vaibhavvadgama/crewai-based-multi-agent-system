@@ -1,51 +1,111 @@
 from crewai import Crew, Process
-from agent_platform.agents.credit_assessment_agents import create_credit_assessment_agents
+from agent_platform.agents.credit_assessment_agents import (
+    create_credit_assessment_agents,
+)
 from agent_platform.tasks.credit_assessment_tasks import create_credit_assessment_tasks
 
 
 def assess_credit_application(application_data):
     """
-    Process credit application using hierarchical workflow with parallel analysis.
+    End-to-end credit assessment with Human-in-the-Loop approval gate.
     """
-    print(f"\n{'='*80}")
-    print(f"CREDIT ASSESSMENT - Loan Application Review")
-    print(f"Applicant: {application_data['applicant']['name']}")
-    print(f"Requested Amount: ${application_data['loan_request']['amount']:,}")
-    print(f"{'='*80}\n")
 
-    # Create agents
+    print("\n" + "=" * 80)
+    print("CREDIT ASSESSMENT PIPELINE STARTED")
+    print(f"Applicant: {application_data['applicant']['name']}")
+    print(f"Loan Amount: ${application_data['loan_request']['amount']:,}")
+    print("=" * 80 + "\n")
+
+    # -----------------------------
+    # Step 1: Initialize agents
+    # -----------------------------
     agents = create_credit_assessment_agents()
 
-    # Create tasks
+    # -----------------------------
+    # Step 2: Build tasks
+    # -----------------------------
     tasks = create_credit_assessment_tasks(agents, application_data)
 
-    # Create hierarchical crew
+    # -----------------------------
+    # Step 3: Run analysis crew
+    # -----------------------------
     crew = Crew(
-        agents=[agents["financial"], agents["industry"], agents["compliance"]],
+        agents=[
+            agents["financial"],
+            agents["industry"],
+            agents["compliance"],
+        ],
         tasks=tasks,
         process=Process.hierarchical,
         manager_llm=agents["manager"].llm,
         verbose=True,
     )
 
-    # Execute
-    try:
-        result = crew.kickoff()
+    # Execute analysis + HITL packet
+    analysis_result = crew.kickoff()
 
-        print(f"\n{'='*80}")
-        print("CREDIT DECISION")
-        print(f"{'='*80}\n")
-        print(result)
+    # -----------------------------
+    # Step 4: HUMAN GATE
+    # -----------------------------
+    print("\n" + "=" * 80)
+    print("HUMAN REVIEW REQUIRED")
+    print("=" * 80)
+    print(analysis_result)
 
-        return result
+    decision = (
+        input("\nEnter decision (APPROVE / DECLINE / CONDITIONAL): ").strip().upper()
+    )
+    notes = input("Enter rationale: ").strip()
 
-    except Exception as e:
-        print(f"\nError in credit assessment: {str(e)}")
-        return None
+    human_input = {
+        "decision": decision,
+        "notes": notes,
+    }
+
+    print("\nHuman decision captured:", human_input)
+
+    # -----------------------------
+    # Step 5: Final decision crew
+    # -----------------------------
+    final_prompt = f"""
+You are the Credit Decision Manager.
+
+Here is the full analysis:
+{analysis_result}
+
+Human decision:
+- Decision: {human_input['decision']}
+- Notes: {human_input['notes']}
+
+Now produce final structured credit decision report.
+
+Rules:
+- Human decision is primary authority
+- Only override if compliance violation exists
+"""
+
+    final_crew = Crew(
+        agents=[agents["manager"]],
+        tasks=[tasks[-1]],  # decision_task
+        process=Process.sequential,
+        verbose=True,
+    )
+
+    # Inject human context into task dynamically
+    tasks[-1].description += f"\n\nHUMAN INPUT:\n{human_input}"
+
+    final_result = final_crew.kickoff()
+
+    print("\n" + "=" * 80)
+    print("FINAL CREDIT DECISION")
+    print("=" * 80)
+    print(final_result)
+
+    return final_result
 
 
 if __name__ == "__main__":
-    # Sample loan application
+
     application = {
         "applicant": {
             "name": "TechStart Solutions Inc",
@@ -66,4 +126,4 @@ if __name__ == "__main__":
         },
     }
 
-    result = assess_credit_application(application)
+    assess_credit_application(application)
