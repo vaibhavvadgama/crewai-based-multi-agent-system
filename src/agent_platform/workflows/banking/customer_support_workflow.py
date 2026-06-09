@@ -1,28 +1,55 @@
 import pprint as pretty
 from crewai import Crew, Process
-from agent_platform.llm.llmfactory import get_default_llm
+
 from agent_platform.agents.customer_service_agents import create_customer_service_agents
 from agent_platform.tasks.customer_service_tasks import create_customer_service_tasks
+from agent_platform.guardrails.application_guardrails import apply_pre_guardrails
 
 
 def handle_customer_query(query: str, customer_id: str):
     """
-    Process customer service query using hierarchical workflow.
+    Process customer service query using hierarchical workflow
+    with pre-agent guardrails.
     """
+
     print(f"\n{'='*80}")
-    print(f"CUSTOMER SERVICE - Query Processing")
+    print("CUSTOMER SERVICE - Query Processing")
+    print(f"{'='*80}")
     print(f"Customer: {customer_id}")
-    print(f"Query: {query}")
+    print(f"Raw Query: {query}")
     print(f"{'='*80}\n")
 
-    # Create the agent team
+    # =====================================================
+    # 1. PRE-AGENT GUARDRAILS (NEW LAYER)
+    # =====================================================
+    guardrail_result = apply_pre_guardrails(query, customer_id)
+
+    if not guardrail_result.allowed:
+        print("\n🚫 BLOCKED BY PRE-GUARDRAILS")
+        print("Metadata:")
+        pretty.pprint(guardrail_result.metadata)
+        return guardrail_result.metadata
+
+    cleaned_query = guardrail_result.query
+    route = guardrail_result.metadata.get("route")
+
+    print("\n✅ Pre-Guardrails Passed")
+    print(f"Cleaned Query: {cleaned_query}")
+    print(f"Route: {route}")
+
+    # =====================================================
+    # 2. AGENT INITIALIZATION
+    # =====================================================
     agents = create_customer_service_agents()
 
-    # Create tasks
-    tasks = create_customer_service_tasks(agents, query, customer_id)
+    # =====================================================
+    # 3. TASK CREATION (USES CLEAN QUERY)
+    # =====================================================
+    tasks = create_customer_service_tasks(agents, cleaned_query, customer_id)
 
-    # Create hierarchical crew
-    # Manager agent coordinates specialists automatically
+    # =====================================================
+    # 4. CREW EXECUTION
+    # =====================================================
     crew = Crew(
         agents=[
             agents["intake"],
@@ -32,11 +59,13 @@ def handle_customer_query(query: str, customer_id: str):
         ],
         tasks=tasks,
         process=Process.hierarchical,
-        manager_llm=agents["manager"].llm,  # Use manager's LLM for coordination
+        manager_llm=agents["manager"].llm,
         verbose=True,
     )
 
-    # Execute
+    # =====================================================
+    # 5. RUN WORKFLOW
+    # =====================================================
     try:
         result = crew.kickoff()
 
@@ -48,25 +77,27 @@ def handle_customer_query(query: str, customer_id: str):
         return result
 
     except Exception as e:
-        print(f"\nError processing query: {str(e)}")
+        print(f"\n❌ Error processing query: {str(e)}")
         return None
 
 
 if __name__ == "__main__":
-    # Example 1: Password reset request
-    result1 = handle_customer_query(
-        query="I can't log into my account. I think I forgot my password.",
-        customer_id="CUST12345",
-    )
+    test_cases = {
+        "password_reset": {
+            "query": "I can't log into my account. I think I forgot my password.",
+            "customer_id": "CUST12345",
+        },
+        "account_inquiry": {
+            "query": "Show my account info, current balance and recent transactions associated to my account with email vaibhav.vadgama.it@gmail.com.",
+            "customer_id": "CUST12345",
+        },
+        "technical_issue": {
+            "query": "The mobile app keeps crashing when I try to view statements.",
+            "customer_id": "CUST67890",
+        },
+    }
 
-    # Example 2: Account inquiry
-    # result2 = handle_customer_query(
-    #     query="What's my current balance and recent transactions?",
-    #     customer_id="CUST12345"
-    # )
+    selected_case = "account_inquiry"
+    result = handle_customer_query(**test_cases[selected_case])
 
-    # Example 3: Technical issue
-    # result3 = handle_customer_query(
-    #     query="The mobile app keeps crashing when I try to view statements.",
-    #     customer_id="CUST67890"
-    # )
+    print(result)

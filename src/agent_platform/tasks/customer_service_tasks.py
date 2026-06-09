@@ -1,4 +1,7 @@
 from crewai import Task
+from agent_platform.guardrails.customer_support_guardrails import (
+    mask_card_numbers_guardrail,
+)
 
 
 def create_customer_service_tasks(agents, customer_query, customer_id):
@@ -37,12 +40,14 @@ def create_customer_service_tasks(agents, customer_query, customer_id):
         3. Any active alerts or issues
         4. Relevant account details for addressing the query""",
         expected_output="""Account summary containing:
+        - Account information
         - Account status and balance
         - Recent activity
         - Any alerts or concerns
         - Customer profile information""",
         agent=agents["account"],
         context=[intake_task],  # Depends on intake classification
+        guardrail=mask_card_numbers_guardrail,
     )
 
     # Task 3: Resolve or Escalate
